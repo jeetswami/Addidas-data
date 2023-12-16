@@ -1,0 +1,325 @@
+---
+title: "Homework5"
+author: "Jeet Swami"
+date: "2022-11-14"
+output: word_document
+---
+
+
+# A) Data Gathering and Integration
+# Loading library and setting directory
+```{r}
+getwd()
+print(setwd("C:/Users/alaps/Downloads"))
+library(tidyverse)
+library(rattle)
+library(e1071)
+library(factoextra)
+library(astsa)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(caret)
+```
+
+# Calling Data
+
+```{r}
+adidas <- read.csv("adidas.csv", header = T, na.strings = c("", "NA"))
+adidas <- adidas[,-1] # Remove URL
+adidas <- adidas[,-5] # Remove currency
+adidas <- adidas[,-8] # Remove source
+adidas <- adidas[,-8] # Remove source website
+adidas <- adidas[,-9] # Remove description
+adidas <- adidas[,-9] # Remove brand
+adidas <- adidas[,-9] # Remove images
+adidas <- adidas[,-9] # Remove country
+adidas <- adidas[,-9] # Remove Languge
+adidas <- adidas[,-11] #Remove crawledat
+adidas <- adidas[,-1] # Remove Name
+adidas <- adidas[,-1] # Remove sku
+colnames(adidas)
+# Remove Dollar sign
+adidas$original_price = as.numeric(gsub("\\$","", adidas$original_price))
+# Remove NA Values 
+adidas <- na.omit(adidas)
+head(adidas)
+```
+
+# B) Data Exploration
+
+```{r}
+# Grouping and Summarizing
+# Grouping by color
+adidas %>% group_by(adidas$color) %>% summarise("count"=n())
+# Grouping by Category
+adidas %>% group_by(adidas$category) %>% summarise("count"=n())
+# Grouping by breadcrumbs
+adidas %>% group_by(adidas$breadcrumbs) %>% summarise("count"=n())
+# Grouping by availability
+adidas %>% group_by(adidas$availability) %>% summarise("count"=n())
+
+# Grouping by category and average rating
+adidas %>% group_by(adidas$category) %>% summarize(avg_rating = mean(average_rating,na.rm=TRUE))
+# Grouping by category and selling price
+adidas %>% group_by(adidas$category) %>% summarize(avg_sellingprice = mean(selling_price,na.rm=TRUE))
+```
+
+
+# Ploting Histogram for Numerical data
+
+```{r}
+ggplot(adidas, aes(selling_price)) + geom_histogram(binwidth = 10)
+```
+
+
+```{r}
+ggplot(adidas, aes(original_price)) + geom_histogram(binwidth = 10)
+```
+
+
+```{r}
+ggplot(adidas, aes(average_rating)) + geom_histogram(binwidth = 0.1)
+```
+
+
+```{r}
+ggplot(adidas, aes(reviews_count)) + geom_histogram(binwidth = 500)
+```
+
+# Bar Plot for Categorical Variable
+
+```{r}
+ggplot(adidas, aes(x=availability)) + geom_bar()
+```
+
+
+```{r}
+ggplot(adidas, aes(x=color)) + geom_bar()
+```
+
+
+```{r}
+ggplot(adidas, aes(x=category)) + geom_bar()
+```
+
+```{r}
+ggplot(adidas, aes(x=breadcrumbs)) + geom_bar()
+```
+
+
+```{r}
+# Bar chart between color and category
+ggplot(adidas, aes(x=color, fill=category)) + geom_bar(position="stack")
+```
+
+
+```{r}
+# Point chart between selling price and average rating
+ggplot(adidas, aes(selling_price, average_rating)) + geom_point()
+```
+
+
+```{r}
+# Box plot between category and selling price
+ggplot(adidas, aes(x=category,y=selling_price))+geom_boxplot()
+```
+
+
+# C) Data Cleaning
+
+```{r}
+# Checking for NA Values
+colSums(is.na(adidas))
+```
+
+
+```{r}
+# Checking outliers for numerical data
+boxplot(adidas$selling_price,xlab="selling_price")
+```
+
+
+```{r}
+boxplot(adidas$original_price,xlab="original_price")
+```
+
+
+```{r}
+boxplot(adidas$average_rating,xlab="average_rating")
+```
+
+
+```{r}
+boxplot(adidas$reviews_count,xlab="reviews_count")
+```
+
+
+```{r}
+# Removing the values for Numeric columns which are in range quartiles +/- 1.5 * IQR
+
+Q1 <- quantile(adidas$selling_price, .25)
+Q3 <- quantile(adidas$selling_price, .75)
+IQR <- IQR(adidas$selling_price)
+adidas <- subset(adidas, adidas$selling_price> (Q1 - 1.5*IQR) & adidas$selling_price< (Q3 + 1.5*IQR))
+
+
+Q1 <- quantile(adidas$original_price, .25)
+Q3 <- quantile(adidas$original_price, .75)
+IQR <- IQR(adidas$original_price)
+adidas <- subset(adidas, adidas$original_price> (Q1 - 1.5*IQR) & adidas$original_price< (Q3 + 1.5*IQR))
+
+
+Q1 <- quantile(adidas$average_rating, .25)
+Q3 <- quantile(adidas$average_rating, .75)
+IQR <- IQR(adidas$average_rating)
+adidas <- subset(adidas, adidas$average_rating> (Q1 - 1.5*IQR) & adidas$average_rating< (Q3 + 1.5*IQR))
+
+
+Q1 <- quantile(adidas$reviews_count, .25)
+Q3 <- quantile(adidas$reviews_count, .75)
+IQR <- IQR(adidas$reviews_count)
+adidas <- subset(adidas, adidas$reviews_count> (Q1 - 1.5*IQR) & adidas$reviews_count< (Q3 + 1.5*IQR))
+
+dim(adidas)
+```
+
+
+```{r}
+#Converting availability column from categorical to Numerical (0,1)
+adidas$availability <- ifelse(adidas$availability == "Y",1,0)
+head(adidas)
+```
+
+# D) Data Preprocessing
+
+
+```{r}
+# Creating bin for average_rating
+adidas <- adidas %>% mutate(Ratingrange = cut(average_rating, breaks = c(0,4.6,4.8,5.0),labels=c("Poor","Good","VeryGood")))
+head(adidas)
+```
+
+
+```{r}
+# Normalise Data
+adidasnorm <- adidas %>% select(-c(availability))
+preprocess <- preProcess(adidasnorm, method = c("center", "scale"))
+normdata <- predict(preprocess, adidasnorm)
+summary(normdata)
+normdata$availability <- adidas$availability
+head(normdata)
+```
+
+
+```{r}
+# Creating Dummy Variable
+dummy <- dummyVars(~., data = normdata)
+dummies <- as.data.frame(predict(dummy, newdata = normdata))
+head(dummies)
+```
+
+
+```{r}
+addidasdummy <- as.data.frame(dummies)
+addidasdummy <- na.omit(addidasdummy)
+head(addidasdummy)
+```
+
+
+# E) Clustering
+
+```{r}
+library(cluster)
+set.seed(13)
+addidas1 <- addidasdummy %>% select(-c(availability))
+preprocess <- preProcess(addidas1, method = c("center","scale"))
+pred <- predict(preprocess, addidas1)
+fviz_nbclust(addidas1, kmeans, method = "wss")
+```
+
+
+```{r}
+fviz_nbclust(addidas1, kmeans, method = "silhouette")
+```
+
+
+```{r}
+gapstat <- clusGap(addidas1, FUN = kmeans, nstart = 25, K.max = 5, B = 50)
+fviz_gap_stat(gapstat)
+```
+
+
+```{r}
+kmean <- kmeans(addidas1, centers = 2, nstart =25)
+kmean
+```
+
+
+```{r}
+fviz_cluster(kmean, data = addidas1)
+```
+
+
+```{r}
+#claculate PCA
+pca = prcomp(pred)
+# save as data frame
+rotateddata = as.data.frame(pca$x)
+rotateddata$Clusters = as.factor(kmean$cluster)
+ggplot(data = rotateddata, aes(x=PC1, y = PC2, col = Clusters)) + geom_point()
+```
+
+# F) Classification
+
+```{r}
+# Decision Tree
+train_control = trainControl(method = "cv", number = 10)
+hypers = rpart.control(minsplit = 5, maxdepth = 1, minbucket = 5)
+tree1 <- train(Ratingrange~., data = adidas,control = hypers, method = "rpart1SE", trControl = train_control)
+tree1
+pred_test <- predict(tree1, adidas)
+cm <-confusionMatrix(adidas$Ratingrange, pred_test)
+cm
+```
+
+
+
+```{r}
+# K-Nearest neighbour using tuneGrid
+tuneGrid <- expand.grid(kmax = 3:10,kernel = c("rectangular", "cos"),distance = 1:3)
+knn <- train(as.factor(Ratingrange)~., data = adidas, method = 'kknn', trControl = train_control, tuneGrid = tuneGrid)
+knn
+```
+
+
+
+# G) Evaluation
+
+```{r}
+metrics <- as.data.frame(cm$byClass)
+metrics
+```
+
+
+```{r}
+metrics %>% select(c(Precision))
+```
+
+
+```{r}
+metrics %>% select(c(Recall))
+```
+
+
+```{r}
+library(pROC)
+pred_prob <- predict(knn, adidas, type = "prob")
+roc_obj <- roc((adidas$Ratingrange), pred_prob[,1])
+plot(roc_obj, print.auc=TRUE)
+```
+
+
+# H) Report
+
+
