@@ -320,6 +320,3 @@ plot(roc_obj, print.auc=TRUE)
 ```
 
 
-# H) Report
-
-
